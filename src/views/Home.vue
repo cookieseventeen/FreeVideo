@@ -83,6 +83,8 @@ export default {
         playsinline: 0,
       },
       videoList: [],
+      videoListCounter: 0,
+      currentVideo: null,
       randomMusic: true,
       loopMusic: false,
       videoId: null,
@@ -90,11 +92,11 @@ export default {
   },
   methods: {
     playVideo() {
-      console.log("playVideo");
+      //console.log("playVideo");
       this.player.playVideo();
     },
     playing() {
-      console.log("o/ we are watching!!!");
+      //console.log("o/ we are watching!!!");
       window.addEventListener(
         "visibilitychange",
         (e) => e.stopImmediatePropagation(),
@@ -119,44 +121,42 @@ export default {
           "^(?:https?://)?(?:www.)?youtu.?be(?:.com)?.*?(?:v|list)=(.*?)(?:&|$)|^(?:https?://)?(?:www.)?youtu.?be(?:.com)?(?:(?!=).)*/(.*)$",
         videoReg = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]{11,11}).*/;
 
-      if (playListLink) {
-        if (playListLink.indexOf("list") != -1) {
-          let listID = getYotubePlaylistId(playListLink),
-            listVideoId = "";
+      //clear video
+      vm.videoId = "";
 
-          if (playListLink.match(videoReg)) {
-            listVideoId =
-              playListLink.match(videoReg).length > 2
-                ? playListLink.match(videoReg)[2]
-                : "";
-          }
+      //判斷有沒有video ID
+      if (playListLink.match(videoReg)) {
+        vm.videoId =
+          playListLink.match(videoReg).length > 2
+            ? playListLink.match(videoReg)[2]
+            : "";
+      }
+      //判斷是不是列表，如果是取出列表ID向youtube查詢．
+      if (playListLink.indexOf("list") != -1) {
+        let listID = getYotubePlaylistId(playListLink);
+        const youtubeLink = `${process.env.VUE_APP_YOUTUBEAPIPATH}?part=snippet%2CcontentDetails&maxResults=50&playlistId=${listID}&key=${process.env.VUE_APP_YOUTUBEKEY}`;
 
-          //console.log(playListLink.indexOf("watch"));
-          //console.log(playListLink.indexOf("list"));
-
-          //var id = getYotubePlaylistId(vm.playListLink);
-          //let listListID = vm.playListLink.match(listReg);
-          //let videoListID = listListID[1];
-
-          const youtubeLink = `${process.env.VUE_APP_YOUTUBEAPIPATH}?part=snippet%2CcontentDetails&maxResults=50&playlistId=${listID}&key=${process.env.VUE_APP_YOUTUBEKEY}`;
-
-          vm.$http
-            .get(youtubeLink, {
-              withCredentials: false,
-            })
-            .then((res) => {
-              console.log(res);
-              vm.videoList = res.data.items;
-              if (listVideoId != "") {
-                vm.videoId = listVideoId;
-              } else {
-                vm.setVidoe();
-              }
-            })
-            .catch((err) => {
-              console.error(err);
-            });
-        }
+        vm.$http
+          .get(youtubeLink, {
+            withCredentials: false,
+          })
+          .then((res) => {
+            //console.log(res);
+            vm.videoList = res.data.items;
+            vm.videoListCounter = vm.videoList.length;
+            if (!vm.videoId) {
+              vm.setVidoe();
+            } else {
+              vm.currentVideo = vm.videoList.findIndex(
+                (element) => vm.videoId == element.snippet.resourceId.videoId
+              );
+            }
+            //成功抓到數據的時候，將連結存到youtubeLink
+            localStorage.setItem("youtubeLink", vm.playListLink);
+          })
+          .catch((err) => {
+            console.error(err);
+          });
       }
     },
     setLoop() {
@@ -166,11 +166,22 @@ export default {
       this.randomMusic = !this.randomMusic;
     },
     setVidoe() {
-      if (this.videoId == null || this.randomMusic == true) {
-        let videoCount = this.videoList.length,
-          currentVideo = Math.floor(Math.random() * videoCount);
-        this.videoId = this.videoList[currentVideo].snippet.resourceId.videoId;
+      let vm = this;
+      //如果是亂數產生
+      if (vm.videoId == null || vm.randomMusic == true) {
+        let videoCount = vm.videoList.length;
+        vm.currentVideo = Math.floor(Math.random() * vm.videoListCounter);
       }
+
+      //非亂數產生
+      if (vm.videoId == null || vm.randomMusic == false) {
+        if (vm.currentVideo < vm.videoListCounter - 1) {
+          vm.currentVideo++;
+        } else {
+          vm.currentVideo = 0;
+        }
+      }
+      vm.videoId = this.videoList[vm.currentVideo].snippet.resourceId.videoId;
     },
   },
   computed: {
@@ -180,6 +191,17 @@ export default {
   },
   components: {},
   mounted() {
+    const vm = this;
+    let youtubeLink = localStorage.getItem("youtubeLink");
+    if (youtubeLink) {
+      vm.playListLink = youtubeLink;
+
+      setTimeout(() => {
+        vm.getListVideo();
+        vm.playVideo();
+      }, 1000);
+    }
+    /*
     setTimeout(function () {
       window.addEventListener(
         "visibilitychange",
@@ -187,6 +209,7 @@ export default {
         true
       );
     }, 3000);
+    */
   },
 };
 </script>
