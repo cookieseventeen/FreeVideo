@@ -94,7 +94,7 @@
         <b-input-group prepend="Youtube 列表">
           <b-form-input v-model="playListLink"></b-form-input>
           <b-input-group-append>
-            <b-button variant="info" @click="getListVideo"
+            <b-button variant="info" @click="getListVideo('')"
               >載入播放列表</b-button
             >
           </b-input-group-append>
