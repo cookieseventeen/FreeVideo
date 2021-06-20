@@ -70,33 +70,40 @@
         </ul>
       </div>
     </div>
-
-    <!--
-    <div class="container-fluid">
-      <div class="row">
-        <div class="col-md-8" v-if="videoId">
-          <youtube
-            :video-id="videoId"
-            ref="youtube"
-            @playing="playing"
-            :resize="true"
-            :fitParent="true"
-            :player-vars="playerVars"
-            @ended="ended"
-          ></youtube>
-        </div>
-        <div class="col-md-4"></div>
-      </div>
-    </div>
-    -->
     <div class="player__bar">
       <div class="col-md-8">
         <b-input-group prepend="Youtube 列表">
-          <b-form-input v-model="playListLink"></b-form-input>
+          <div class="player-input" :class="[ historyStatus ? 'player-input--open-history' : '']">
+              <b-form-input v-model="playListLink"></b-form-input>
+              <div class="player-input__history">
+                <ul>
+                  <li v-for="(item, key) in getHistory" :key="key">
+                    <div class="player-input__history-wrap" @dblclick="setHistory(item)" >
+                      <span class="player-input__history-link" >{{item.historyLink}}</span>
+                      <div class="player-input__history-item">
+                        <div class="history-preview-list">
+                          <div class="history-preview-list__item" v-for="(previewItem, key) in item.data.items" :key="key">
+                            <div class="preview-card" >
+                              <div class="preview-card__pic">
+                                <img :src="previewItem.snippet.thumbnails.default.url" :alt="previewItem.snippet.title">
+                              </div>
+                              <div class="preview-card__text">
+                                {{previewItem.snippet.title}}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+          </div>
           <b-input-group-append>
             <b-button variant="info" @click="getListVideo('')"
-              >載入播放列表</b-button
-            >
+              >載入播放列表</b-button>
+
+            <b-button variant="info" @click="toggleHistory()"><i class="fas fa-history"></i></b-button>
           </b-input-group-append>
         </b-input-group>
       </div>
@@ -161,15 +168,14 @@ export default {
       videoId: null,
       nextPageToken: "",
       prevPageToken: "",
+      historyStatus: false
     };
   },
   methods: {
     playVideo() {
-      //console.log("playVideo");
       this.player.playVideo();
     },
     playing() {
-      //console.log("o/ we are watching!!!");
       window.addEventListener(
         "visibilitychange",
         (e) => e.stopImmediatePropagation(),
@@ -192,7 +198,8 @@ export default {
         playListLink = vm.playListLink,
         listReg =
           "^(?:https?://)?(?:www.)?youtu.?be(?:.com)?.*?(?:v|list)=(.*?)(?:&|$)|^(?:https?://)?(?:www.)?youtu.?be(?:.com)?(?:(?!=).)*/(.*)$",
-        videoReg = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]{11,11}).*/;
+        videoReg =
+          /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]{11,11}).*/;
 
       //clear video
       vm.videoId = "";
@@ -209,21 +216,19 @@ export default {
         let listID = getYotubePlaylistId(playListLink);
 
         let httpParams = {
-          part: "snippet,contentDetails",
+          part: "snippet",
           playlistId: listID,
           maxResults: 50,
           key: process.env.VUE_APP_YOUTUBEKEY,
           pageToken: pageTokenData,
         };
-        console.log("httpParams", httpParams);
+
         vm.$http
           .get(process.env.VUE_APP_YOUTUBEAPIPATH, {
             withCredentials: false,
             params: httpParams,
           })
           .then((res) => {
-            console.log(res.data);
-
             vm.videoList = res.data.items;
             vm.videoListCounter = vm.videoList.length;
             vm.nextPageToken = res.data.nextPageToken;
@@ -236,8 +241,11 @@ export default {
                 (element) => vm.videoId == element.snippet.resourceId.videoId
               );
             }
+
             //成功抓到數據的時候，將連結存到youtubeLink
             localStorage.setItem("youtubeLink", vm.playListLink);
+
+            vm.addHistory(res.data, vm.playListLink);
           })
           .catch((err) => {
             console.error(err);
@@ -267,11 +275,52 @@ export default {
         }
       }
       if (typeof orderNum === "number") {
-        console.log(orderNum);
         vm.currentVideo = orderNum;
       }
       vm.videoId = this.videoList[vm.currentVideo].snippet.resourceId.videoId;
     },
+    toggleHistory(){
+      this.historyStatus = !this.historyStatus;
+    },
+    addHistory(data = null, link = null) {
+      //localStorage.removeItem("playerHistory");
+      let historyData = localStorage.getItem("playerHistory"),
+        setData = {
+          historyLink: link,
+          data: data
+        };
+
+      if (historyData) {
+        if (historyData.indexOf(link) == -1) {
+          historyData = JSON.parse(historyData);
+          historyData.push(setData);
+          localStorage.setItem("playerHistory", JSON.stringify(historyData));
+          console.log('新增一筆');
+        }else{
+           console.log('已經有了');
+        }
+      } else {
+        historyData = [];
+        historyData.push(setData);
+        localStorage.setItem("playerHistory", JSON.stringify(historyData));
+        console.log('開始一筆');
+      }
+
+    },
+    setHistory(data){
+      const vm = this;
+      vm.playListLink = data.historyLink;
+      vm.videoList = data.data.items;
+      vm.videoListCounter = vm.videoList.length;
+      vm.nextPageToken = data.data.nextPageToken;
+      vm.prevPageToken = data.data.prevPageToken;
+      vm.historyStatus=false;
+
+      setTimeout(() => {
+        vm.setVidoe();
+        vm.playVideo();
+      }, 400);
+    }
   },
   computed: {
     player() {
@@ -280,28 +329,22 @@ export default {
     fullHeight() {
       return window.innerHeight;
     },
+    getHistory(){
+      let historyData = localStorage.getItem("playerHistory");
+      if (historyData) {
+        return JSON.parse(historyData);
+      }
+    }
   },
   components: {},
   mounted() {
     const vm = this;
-    let youtubeLink = localStorage.getItem("youtubeLink");
-    if (youtubeLink) {
-      vm.playListLink = youtubeLink;
-
-      setTimeout(() => {
-        vm.getListVideo();
-        vm.playVideo();
-      }, 1000);
+    let playerHistory = localStorage.getItem("playerHistory");
+    if (playerHistory) {
+      playerHistory= JSON.parse(playerHistory);
+      let lastHistoryItem=playerHistory[playerHistory.length-1];
+      vm.setHistory(lastHistoryItem);
     }
-    /*
-    setTimeout(function () {
-      window.addEventListener(
-        "visibilitychange",
-        (e) => e.stopImmediatePropagation(),
-        true
-      );
-    }, 3000);
-    */
   },
 };
 function getVideoData() {}
@@ -415,6 +458,90 @@ $dark-color: #030303;
   &__title {
     color: #fff;
     text-align: left;
+  }
+}
+
+.player-input{
+  position: relative;
+  flex: 1 1 auto;
+  width: 1%;
+  min-width: 0;
+  margin-bottom: 0;
+  &--open-history &__history{
+    opacity: 1;
+    pointer-events: auto;
+  }
+  &__history{
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background: #e5e5e5;
+    transition: opacity 0.6s ease;
+    opacity: 0;
+    pointer-events: none;
+
+    ul,li{
+      list-style: none;
+      padding: 0;
+    }
+    >ul{
+      padding: 15px;
+      border-radius: 5px;
+    }
+    li{
+      text-align: left;
+    }
+    li+li{
+      margin-top: 8px;
+    }
+  }
+  &__history-link{
+    display: block;
+    overflow:hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  &__history-item{
+    margin-top: 4px;
+  }
+  &__history-item-list{
+    display: flex;
+    overflow-x:auto;
+  }
+  &__history-item-list-items{
+    flex: 0 0 auto;
+  }
+  &__history-wrap{
+    cursor: pointer;
+    transition: background 0.4s ease;
+    &:hover{
+      background:darken($color: #e5e5e5, $amount: 10);
+    }
+  }
+}
+.preview-card{
+  display: flex;
+  align-items: center;
+  &__pic{
+    width: 60px;
+    img{max-width:100%}
+  }
+  &__text{
+    padding-left: 8px;
+  }
+}
+.history-preview-list{
+  display: flex;
+  overflow-x:auto;
+  margin: 0 -6px;
+  &__item{
+    display: flex;
+    padding: 0 3px;
+    flex: 0 0 auto;
+  }
+  &__text{
+    white-space: nowrap;
   }
 }
 </style>
