@@ -9,14 +9,13 @@ import 'bootstrap-vue/dist/bootstrap-vue.css'
 // Install BootstrapVue
 Vue.use(BootstrapVue)
 // Optionally install the BootstrapVue icon components plugin
-Vue.use(IconsPlugin) 
+Vue.use(IconsPlugin)
 
 import VueYoutube from 'vue-youtube'
 Vue.use(VueYoutube)
 
 import axios from 'axios'
 Vue.prototype.$http = axios
-
 Vue.config.productionTip = false
 
 new Vue({
