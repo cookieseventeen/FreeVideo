@@ -212,7 +212,7 @@ export default {
           vm.nextPageToken = res.data.nextPageToken;
           vm.prevPageToken = res.data.prevPageToken;
 
-          if (!res.data.nextPageToken) {
+          if (!res.data.nextPageToken || vm.videoList?.length > 100) {
             if (!vm.videoId) {
               vm.setVidoe();
             } else {
@@ -224,6 +224,7 @@ export default {
             console.log(res.data);
             //vm.addHistory();
           } else {
+
             this.getVideo(listID, res.data.nextPageToken);
           }
         })
